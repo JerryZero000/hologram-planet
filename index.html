@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#04060a" />
+    <meta
+      name="description"
+      content="可拖动旋转、可缩放的全息风格星球。这是屏幕上的三维视觉效果，不是物理全息投影。"
+    />
+    <title>全息风格星球</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='%235eead4' stroke-width='1.4'/%3E%3Ccircle cx='16' cy='16' r='12' fill='none' stroke='%235eead4' stroke-width='1' opacity='.65'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="scene" aria-label="可旋转的全息风格星球"></canvas>
+    <div class="vignette" aria-hidden="true"></div>
+    <div class="scanlines" aria-hidden="true"></div>
+
+    <header class="hud">
+      <p class="kicker">第一课 · 单视角</p>
+      <h1>全息风格星球</h1>
+      <p class="disclaimer">
+        <strong>这是三维视觉效果，不是物理全息投影。</strong>
+        星球只画在这块屏幕上，不会出现在空气里。
+      </p>
+    </header>
+
+    <footer class="hud">
+      <p class="hint">拖动旋转视角 · 滚轮或双指缩放</p>
+      <div class="controls">
+        <button id="toggle-spin" type="button" aria-pressed="false">暂停自转</button>
+        <button id="reset-view" type="button">重置视角</button>
+      </div>
+    </footer>
+
+    <div id="fallback" hidden>
+      <div class="card">
+        <h2>无法显示三维画面</h2>
+        <p id="fallback-text">
+          当前浏览器不能使用 WebGL，星球画不出来。请换用较新的 Chrome、Edge 或 Firefox，并确认已开启硬件加速。
+        </p>
+        <p>即便显示成功，这也是屏幕上的三维视觉效果，不是物理全息投影。</p>
+      </div>
+    </div>
+
+    <noscript>
+      <div class="noscript-screen">
+        <div class="card">
+          <h2>需要 JavaScript</h2>
+          <p>三维画面靠脚本绘制。请启用 JavaScript 后再打开这个页面。</p>
+          <p>这是屏幕上的三维视觉效果，不是物理全息投影。</p>
+        </div>
+      </div>
+    </noscript>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
