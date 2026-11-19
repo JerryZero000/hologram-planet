@@ -1,11 +1,7 @@
-// 全息风格星球 — 第一课，只有一个视角。
+// 全息风格星球。
 // 屏幕上的发光是三维视觉效果，不是物理全息投影。
-//
-// 以后如果要做透明反射金字塔（佩珀尔幻象），不要重写星球。
-// 扩展点就这几处：createCameras、syncCameras、layoutViewports、renderView。
-// 四台相机绕竖直轴相差 90°，屏幕再分成四块。
-// 画面在屏幕上还要不要旋转，取决于屏幕在金字塔上方还是下方。
-// 屏幕尺寸还不知道，所以这里不写视口边长，也不做四画面。
+// 四面预览给「屏幕朝上、金字塔放在屏幕上」的佩珀尔幻象用。
+// 星球、灯光、辉光不要为了四面重写。改相机和视口即可。
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -16,6 +12,20 @@ const spinSpeed = 0.18;
 const minDistance = 2.25;
 const maxDistance = 8.2;
 
+// 四面预览。顺序：下、右、上、左，和 cameras 的顺序一致。
+// yawOffset：绕竖直轴，相对主相机再转多少。四面看的是同一姿态，不是四颗各自转的星球。
+// rollDegrees：这块画面在屏幕上的旋转（正数 = 逆时针）。它不改变你看到星球的哪一侧。
+// 这组角度按「屏幕在金字塔下面」：每块的上方朝向屏幕中心，反射后侧面看才正。
+// 如果改成屏幕在金字塔上方，把每个 rollDegrees 改成相反数（90 和 -90 对调，0 和 180 不用改）。
+const PYRAMID_VIEWS = [
+  { name: 'bottom', yawOffset: 0, rollDegrees: 0, col: 1, row: 0 },
+  { name: 'right', yawOffset: Math.PI / 2, rollDegrees: 90, col: 2, row: 1 },
+  { name: 'top', yawOffset: Math.PI, rollDegrees: 180, col: 1, row: 2 },
+  { name: 'left', yawOffset: Math.PI * 1.5, rollDegrees: -90, col: 0, row: 1 },
+];
+
+const VIEW_MODE_KEY = 'hologram-view-mode';
+
 let renderer = null;
 let scene = null;
 let cameras = [];
@@ -24,10 +34,12 @@ let planetGroup = null;
 let outerGlow = null;
 let frameId = 0;
 let spinning = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+let viewMode = loadViewMode();
 
 const drawSize = new THREE.Vector2();
 const orbitSpherical = new THREE.Spherical();
 const orbitOffset = new THREE.Vector3();
+const rollAxis = new THREE.Vector3();
 // Timer 负责算每一帧过了多少秒。旧的 Clock 在当前 three.js 里会打弃用警告。
 const timer = new THREE.Timer();
 timer.connect(document);
@@ -67,6 +79,52 @@ function updateSpinButton() {
   button.setAttribute('aria-pressed', spinning ? 'false' : 'true');
 }
 
+function loadViewMode() {
+  try {
+    const saved = sessionStorage.getItem(VIEW_MODE_KEY);
+    if (saved === 'single' || saved === 'quad') return saved;
+  } catch (error) {
+    // 有的浏览器会禁掉 sessionStorage。用默认的四面预览即可。
+  }
+  return 'quad';
+}
+
+function updateChromePlacement() {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const side = Math.floor(Math.min(width, height) / 3);
+  const originX = Math.floor((width - side * 3) / 2);
+  const originY = Math.floor((height - side * 3) / 2);
+  const root = document.documentElement;
+  root.style.setProperty('--cross-side', `${side}px`);
+  root.style.setProperty('--cross-x', `${originX}px`);
+  root.style.setProperty('--cross-y', `${originY}px`);
+  document.body.classList.remove('chrome-outside-y', 'chrome-outside-x', 'chrome-corners');
+  if (viewMode !== 'quad') return;
+  // 字和按钮只放在十字外面的空处，不压住四块画面。
+  if (originY >= 150) document.body.classList.add('chrome-outside-y');
+  else if (originX >= 180) document.body.classList.add('chrome-outside-x');
+  else document.body.classList.add('chrome-corners');
+}
+
+function applyViewMode(mode) {
+  viewMode = mode;
+  document.body.classList.toggle('mode-quad', mode === 'quad');
+  document.body.classList.toggle('mode-single', mode === 'single');
+  document.querySelector('#mode-single').setAttribute('aria-pressed', mode === 'single' ? 'true' : 'false');
+  document.querySelector('#mode-quad').setAttribute('aria-pressed', mode === 'quad' ? 'true' : 'false');
+  document.querySelector('.kicker').textContent = mode === 'quad' ? '四面预览 · 屏幕在下' : '单视角';
+  document.querySelector('.hint').textContent = mode === 'quad'
+    ? '四面一起转 · 滚轮或双指缩放'
+    : '拖动旋转视角 · 滚轮或双指缩放';
+  try {
+    sessionStorage.setItem(VIEW_MODE_KEY, mode);
+  } catch (error) {
+    // 记不住就下次还用默认。不影响画面。
+  }
+  updateChromePlacement();
+}
+
 // ------------------------------------------------------------
 // 1. 场景、相机、渲染器
 // 场景是舞台。相机是观看的位置。渲染器把舞台画进 canvas。
@@ -86,7 +144,7 @@ function createRenderer(canvas) {
   webglRenderer.outputColorSpace = THREE.SRGBColorSpace;
   webglRenderer.toneMapping = THREE.ACESFilmicToneMapping;
   webglRenderer.toneMappingExposure = 1.08;
-  // 自己清屏再逐块画。以后四块视口如果每块都清屏，前一块会被擦掉。
+  // 自己清一次屏，再逐块画。四块视口如果每块都清屏，前一块会被擦掉。
   webglRenderer.autoClear = false;
   webglRenderer.setClearColor(0x000000, 0);
 
@@ -112,16 +170,14 @@ function homePosition() {
 }
 
 function createCameras() {
-  const list = [];
-  const main = new THREE.PerspectiveCamera(40, 1, 0.1, 80);
-  main.position.copy(homePosition());
-  list.push(main);
-
-  // 以后加四视角：在这里再 push 三台 PerspectiveCamera。
-  // 不要给它们写死坐标。syncCameras() 会抄主相机的距离和俯仰，
-  // 只在水平角上加 90°、180°、270°，四面看的是同一颗星球。
-
-  return list;
+  const home = homePosition();
+  return PYRAMID_VIEWS.map(() => {
+    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 80);
+    // 先都放在主相机的家里。真正的方位由 syncCameras() 每帧抄过去。
+    camera.position.copy(home);
+    camera.lookAt(0, 0, 0);
+    return camera;
+  });
 }
 
 // ------------------------------------------------------------
@@ -157,6 +213,7 @@ function createSurfaceTexture() {
   shade.addColorStop(1, 'rgba(0, 0, 0, 0.55)');
   ctx.fillStyle = shade;
   ctx.fillRect(0, 0, width, height);
+
   for (let i = 0; i < 16; i += 1) {
     const x = rand(i + 3) * width;
     const y = height * (0.14 + rand(i + 40) * 0.72);
@@ -445,6 +502,7 @@ function createControls(camera, dom) {
 
 function bindControlsUI() {
   updateSpinButton();
+  applyViewMode(viewMode);
   document.querySelector('#toggle-spin').addEventListener('click', () => {
     spinning = !spinning;
     updateSpinButton();
@@ -452,35 +510,70 @@ function bindControlsUI() {
   document.querySelector('#reset-view').addEventListener('click', () => {
     controls.reset();
   });
+  document.querySelector('#mode-single').addEventListener('click', () => {
+    applyViewMode('single');
+  });
+  document.querySelector('#mode-quad').addEventListener('click', () => {
+    applyViewMode('quad');
+  });
 }
 
 // ------------------------------------------------------------
-// 渲染一块画面。现在整屏调用一次。
-// 以后金字塔每一面调用一次，并传入那一面的视口矩形。
-// 相机朝向（看到星球的哪一侧）和画面在屏幕上的旋转是两件事。
-// 反射会把画面临时翻一下，转多少要等屏幕放在金字塔哪一侧再定。
+// 渲染。单视角画一整屏；四面预览把同一姿态画进十字的四块。
+// 相机朝向（yawOffset）和画面在屏幕上的旋转（rollDegrees）是两件事。
 // ------------------------------------------------------------
 
+function applyViewportRoll(camera, degrees) {
+  camera.up.set(0, 1, 0);
+  camera.lookAt(controls.target);
+  if (!degrees) return;
+  // 绕「从相机指向星球」的轴转 up。转完，画面在这块矩形里跟着转，星球的侧面不变。
+  rollAxis.copy(controls.target).sub(camera.position);
+  if (rollAxis.lengthSq() < 1e-8) return;
+  rollAxis.normalize();
+  camera.up.applyAxisAngle(rollAxis, THREE.MathUtils.degToRad(degrees));
+  camera.lookAt(controls.target);
+}
+
 function syncCameras() {
+  // 主相机的位置就是当前轨道。距离和俯仰原样抄给另外三台，只加水平角。
+  // 不改 cameras[0].up：OrbitControls 每帧会用它来 lookAt，改了轨道会歪。
   const main = cameras[0];
   orbitOffset.copy(main.position).sub(controls.target);
   orbitSpherical.setFromVector3(orbitOffset);
   const baseTheta = orbitSpherical.theta;
-  // 右、后、左。第 0 台是主相机，由 OrbitControls 直接驱动。
-  const extraYaw = [Math.PI / 2, Math.PI, Math.PI * 1.5];
+  const basePhi = orbitSpherical.phi;
+  const baseRadius = orbitSpherical.radius;
+
   for (let i = 1; i < cameras.length; i += 1) {
-    orbitSpherical.theta = baseTheta + (extraYaw[i - 1] || 0);
+    const view = PYRAMID_VIEWS[i];
+    orbitSpherical.theta = baseTheta + view.yawOffset;
+    orbitSpherical.phi = basePhi;
+    orbitSpherical.radius = baseRadius;
     orbitOffset.setFromSpherical(orbitSpherical);
-    cameras[i].position.copy(controls.target).add(orbitOffset);
-    cameras[i].lookAt(controls.target);
+    const camera = cameras[i];
+    camera.position.copy(controls.target).add(orbitOffset);
+    applyViewportRoll(camera, view.rollDegrees);
   }
 }
 
 function layoutViewports(width, height) {
-  // 单视角：一整块屏幕。宽高是绘图缓冲里的像素，不是 CSS 像素。
-  // 四视角时改成四块不重叠的矩形，顺序和 cameras 一致。
-  // 不要在这里猜边距——屏幕多大还不知道。
-  return [{ camera: cameras[0], x: 0, y: 0, width, height }];
+  // 宽高是绘图缓冲里的像素，不是 CSS 像素，也不是金字塔的实物边长。
+  if (viewMode !== 'quad') {
+    return [{ camera: cameras[0], x: 0, y: 0, width, height }];
+  }
+
+  const side = Math.max(1, Math.floor(Math.min(width, height) / 3));
+  const originX = Math.floor((width - side * 3) / 2);
+  const originY = Math.floor((height - side * 3) / 2);
+  // 十字：上、下、左、右各一块正方形，中间和四角留空。row 从屏幕底部数。
+  return PYRAMID_VIEWS.map((view, index) => ({
+    camera: cameras[index],
+    x: originX + view.col * side,
+    y: originY + view.row * side,
+    width: side,
+    height: side,
+  }));
 }
 
 function renderView(camera, viewport) {
@@ -510,6 +603,7 @@ function renderFrame() {
 
 function onResize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
+  updateChromePlacement();
 }
 
 // ------------------------------------------------------------
@@ -570,4 +664,3 @@ if (window.__hologramPlanetStarted) {
   window.__hologramPlanetStarted = true;
   boot();
 }
-

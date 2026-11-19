@@ -15,23 +15,27 @@
     />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
-  <body>
-    <canvas id="scene" aria-label="可旋转的全息风格星球"></canvas>
+  <body class="mode-quad">
+    <canvas id="scene" aria-label="可旋转的全息风格星球，可切换单视角和四面预览"></canvas>
     <div class="vignette" aria-hidden="true"></div>
     <div class="scanlines" aria-hidden="true"></div>
 
     <header class="hud">
-      <p class="kicker">第一课 · 单视角</p>
+      <p class="kicker">四面预览 · 屏幕在下</p>
       <h1>全息风格星球</h1>
       <p class="disclaimer">
         <strong>这是三维视觉效果，不是物理全息投影。</strong>
-        星球只画在这块屏幕上，不会出现在空气里。
+        四面画面给放在屏幕上的透明金字塔看反射，不会出现在空气里。
       </p>
     </header>
 
     <footer class="hud">
-      <p class="hint">拖动旋转视角 · 滚轮或双指缩放</p>
+      <p class="hint">四面一起转 · 滚轮或双指缩放</p>
       <div class="controls">
+        <div class="mode-switch" role="group" aria-label="切换画面">
+          <button id="mode-single" type="button" aria-pressed="false">单视角</button>
+          <button id="mode-quad" type="button" aria-pressed="true">四面预览</button>
+        </div>
         <button id="toggle-spin" type="button" aria-pressed="false">暂停自转</button>
         <button id="reset-view" type="button">重置视角</button>
       </div>

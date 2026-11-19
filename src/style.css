@@ -169,6 +169,100 @@ button:focus-visible {
   outline-offset: 3px;
 }
 
+button[aria-pressed='true'] {
+  background: rgba(32, 110, 102, 0.95);
+  border-color: rgba(190, 255, 240, 0.9);
+}
+
+.mode-switch {
+  display: flex;
+  gap: 8px;
+}
+
+/* 四面预览时，字和按钮让开十字。位置由 main.js 写成 CSS 变量。 */
+body.mode-quad.chrome-outside-y header.hud,
+body.mode-quad.chrome-outside-y footer.hud {
+  max-height: calc(var(--cross-y) - 8px);
+  overflow: hidden;
+}
+
+body.mode-quad.chrome-outside-y header.hud {
+  padding-top: 10px;
+}
+
+body.mode-quad.chrome-outside-x header.hud {
+  width: max(8rem, calc(var(--cross-x) - 20px));
+  max-width: none;
+}
+
+body.mode-quad.chrome-outside-x footer.hud {
+  left: max(12px, env(safe-area-inset-left));
+  right: auto;
+  width: max(8rem, calc(var(--cross-x) - 20px));
+  align-items: stretch;
+}
+
+body.mode-quad.chrome-outside-x .controls,
+body.mode-quad.chrome-corners .controls {
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+}
+
+body.mode-quad.chrome-outside-x .mode-switch,
+body.mode-quad.chrome-corners .mode-switch {
+  width: 100%;
+}
+
+body.mode-quad.chrome-outside-x button,
+body.mode-quad.chrome-corners button {
+  width: 100%;
+  min-width: 0;
+}
+
+body.mode-quad.chrome-corners header.hud {
+  top: var(--cross-y);
+  left: var(--cross-x);
+  width: var(--cross-side);
+  max-width: none;
+  max-height: var(--cross-side);
+  padding: 6px;
+  overflow: hidden;
+}
+
+body.mode-quad.chrome-corners footer.hud {
+  top: calc(var(--cross-y) + (var(--cross-side) * 2));
+  bottom: auto;
+  left: var(--cross-x);
+  width: var(--cross-side);
+  height: var(--cross-side);
+  padding: 6px;
+  overflow: hidden;
+  justify-content: flex-end;
+}
+
+body.mode-quad.chrome-corners h1,
+body.mode-quad.chrome-corners .hint {
+  display: none;
+}
+
+body.mode-quad.chrome-corners .kicker {
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+body.mode-quad.chrome-corners .disclaimer {
+  margin-top: 0;
+  padding: 6px;
+  font-size: 0.75rem;
+}
+
+body.mode-quad.chrome-corners button {
+  min-height: 32px;
+  padding: 0 8px;
+  font-size: 13px;
+}
+
 #fallback[hidden] {
   display: none !important;
 }
@@ -204,21 +298,21 @@ button:focus-visible {
 
 @media (max-width: 640px) {
   h1 {
-    font-size: 1.5rem;
+    font-size: 1.35rem;
   }
 
   .disclaimer {
-    font-size: 0.9rem;
+    font-size: 0.88rem;
   }
 
   .controls {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     width: min(100%, 28rem);
   }
 
   button {
     min-width: 0;
-    flex: 1 1 0;
+    flex: 1 1 auto;
     padding: 0 12px;
   }
 }
